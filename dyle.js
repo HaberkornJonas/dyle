@@ -7,12 +7,13 @@ const YOUTUBE_API_KEY = "<TO_COMPLETE>";
 
 let videos = [];
 let lastMessageId = "";
+let removedOrPrivateVideoCounter = 0;
 
 async function get50MoreMessages() {
   try {
     const response = await axios.get(
       `https://discord.com/api/v9/channels/${DISCORD_CHANNEL_ID}/messages?limit=25${
-        lastMessageId ? "before=" + lastMessageId : ""
+        lastMessageId ? "&before=" + lastMessageId : ""
       }`,
       {
         headers: {
@@ -23,7 +24,7 @@ async function get50MoreMessages() {
     );
 
     if (response.status === 200) {
-      lastMessageId = response.data[response.data.length - 1].id;
+      lastMessageId = response.data[response.data.length - 1]?.id;
       await Promise.all(
         response.data.map(async (m) => {
           const urls = m.content.split(" ").filter((s) => s.startsWith("http"));
@@ -31,9 +32,10 @@ async function get50MoreMessages() {
             const id = youtube_parser(url);
             if (id) {
               const metadata = await getYoutubeVideoMetadata(id);
-              videos.push(
-                `https://youtu.be/${id},${metadata.title},${metadata.publishedAt},${metadata.description}`
-              );
+              if (metadata)
+                videos.push(
+                  `https://youtu.be/${id},${metadata.title},${metadata.publishedAt},${metadata.description}`
+                );
             }
           }
         })
@@ -59,12 +61,16 @@ async function getYoutubeVideoMetadata(videoId) {
     );
 
     if (response.status === 200) {
+      if (!response.data.items[0]) {
+        removedOrPrivateVideoCounter++;
+        return undefined;
+      }
       return {
         title: response.data.items[0].snippet.title.replace(/,/g, ";"),
         publishedAt: response.data.items[0].snippet.publishedAt,
         description:
           response.data.items[0].snippet.description
-            .replace(/,/g, ";") // Avoiding , as they are the deliiters of the .csv file
+            .replace(/,/g, ";") // Avoiding commas as they are the delimiters of the .csv file
             .split("\n")[0] || "-", // Only keeping the first line of description to avoid all promotional links and keep it short
       };
     }
@@ -82,14 +88,20 @@ async function main() {
   let previousCount = 0;
   do {
     previousCount = videos.length;
-    console.log(`[🔎] Got ${previousCount} videos, searching for more...`);
+    console.log(
+      `[🔎] Currently found ${previousCount} videos, searching for more...`
+    );
     await get50MoreMessages();
-  } while (false && previousCount != videos.length);
+  } while (lastMessageId);
 
   console.log(
-    `[📦] Found no new videos, stopping here, found ${videos.length} videos!`
+    `[📦] No more messages available, stopping here, found ${videos.length} videos!`
   );
-  console.log("[💾] Writting into videos.csv...");
+  if (removedOrPrivateVideoCounter)
+    console.log(
+      `[⛔️] Found ${removedOrPrivateVideoCounter} other video links that either went private or were deleted.`
+    );
+  console.log("[💾] Writting data into videos.csv...");
   fs.writeFile(
     `${__dirname}/videos.csv`,
     `Link,Title,PublishedAt,Description\n${videos.join("\n")}`,
