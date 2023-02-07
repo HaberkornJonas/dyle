@@ -20,3 +20,12 @@ This script will allow you to extract all youtube links send in a discord channe
 7. Get your YouTube API key value and put it into `YOUTUBE_API_KEY` in `getVideos.js`
 8. Run with `npm start`
 9. Use the generated `videos.csv` file
+
+## Statistics
+
+For a channel with arround 1080 messages:
+
+- Execution time: < 30 seconds
+- Found: 808 videos
+- Private/deleted: 63 videos
+- CSV file size: 246ko
